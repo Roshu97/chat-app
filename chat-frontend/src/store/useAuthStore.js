@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-const API_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + '/api/auth';
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
+const API_URL = `${BACKEND_URL}/api/auth`;
 
 export const useAuthStore = create((set) => ({
   user: JSON.parse(localStorage.getItem('user')) || null,

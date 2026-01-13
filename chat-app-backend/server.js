@@ -48,6 +48,10 @@ app.use((req, res, next) => {
 
 // Log all requests to help debug
 app.use((req, res, next) => {
+  // Normalize double slashes in URL
+  if (req.url.includes('//')) {
+    req.url = req.url.replace(/\/+/g, '/');
+  }
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
 });
