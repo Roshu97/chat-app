@@ -178,7 +178,7 @@ const frontendPath = path.join(__dirname, '../chat-frontend/dist');
 app.use(express.static(frontendPath));
 
 // For any request that doesn't match an API route, serve index.html
-app.get('(.*)', (req, res, next) => {
+app.get('*', (req, res, next) => {
   // If it starts with /api, it's a missed API route, so let it go to 404
   if (req.url.startsWith('/api')) {
     return next();
