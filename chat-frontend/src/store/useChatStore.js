@@ -15,7 +15,7 @@ export const useChatStore = create((set, get) => ({
 
   // --- ACTIONS ---
   
-  setSelectedUser: (user) => {
+  setSelectedUser: (user, currentUserId) => {
     const { socket, activeRoom } = get();
     if (!user) {
       if (activeRoom !== 'general') {
@@ -25,8 +25,6 @@ export const useChatStore = create((set, get) => ({
       return;
     }
 
-    // Get current user ID from socket query (or passed in)
-    const currentUserId = socket?.io.opts.query.userId;
     if (!currentUserId) return;
 
     // Generate a unique room ID for the private chat
@@ -51,14 +49,14 @@ export const useChatStore = create((set, get) => ({
   },
 
   // Main Connection Logic
-  connect: (userId, username) => {
+  connect: (token) => {
     const { socket, isConnecting } = get();
-    if (socket?.connected || isConnecting) return;
+    if (socket?.connected || isConnecting || !token) return;
 
     set({ isConnecting: true });
     
     const newSocket = io(SOCKET_URL, {
-      query: { userId, username },
+      auth: { token },
     });
 
     newSocket.on('connect', () => {
@@ -117,19 +115,33 @@ export const useChatStore = create((set, get) => ({
   },
 
   uploadFile: async (file) => {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
+      console.error("Cloudinary configuration missing. Please set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.");
+      return null;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "your_preset_name"); 
+    formData.append("upload_preset", uploadPreset); 
 
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/your_cloud_name/image/upload`, {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: "POST",
         body: formData,
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error?.message || "Upload failed");
+      }
+
       const data = await res.json();
       return data.secure_url;
     } catch (error) {
-      console.error("Upload failed", error);
+      console.error("Upload failed:", error.message);
       return null;
     }
   },

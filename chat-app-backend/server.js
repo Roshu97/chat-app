@@ -10,30 +10,172 @@ const server = http.createServer(app);
 
 // Use CORS middleware for regular HTTP routes
 const cors = require('cors');
+
 const allowedOrigins = [
   "https://chat-app-1-44b4.onrender.com",
   "https://chat-app-1-one-flame.vercel.app",
   "http://localhost:5173",
-  "http://localhost:3000"
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:3000"
 ];
 
-const frontendUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, "") : null;
-if (frontendUrl) {
-  if (!allowedOrigins.includes(frontendUrl)) allowedOrigins.push(frontendUrl);
-  if (!allowedOrigins.includes(frontendUrl + "/")) allowedOrigins.push(frontendUrl + "/");
-}
+const corsOptions = {
+  origin: true, // Reflect request origin (allows credentials)
+  credentials: true,
+  optionsSuccessStatus: 200
+};
 
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+// 1. Manual CORS handling to be absolutely sure
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // If the origin is in our allowed list (or if we just want to reflect it for local dev)
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Log all requests to help debug
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  next();
+});
+
+app.use(express.json()); // Body parser after CORS
+
+// Catch JSON parsing errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error("JSON Parsing Error:", err);
+    return res.status(400).json({ message: "Invalid JSON" });
+  }
+  next();
+});
+
+const User = require('./models/User');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
+// Auth Routes
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    console.log("Registration request body:", req.body);
+    const { username, email, password } = req.body;
+    console.log("Registration attempt:", { username, email });
+    
+    let user = await User.findOne({ $or: [{ email }, { username }] });
+    if (user) {
+      console.log("User already exists:", email);
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    user = new User({ username, email, password });
+    await user.save();
+    console.log("User saved successfully:", user._id);
+
+    const token = jwt.sign({ id: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ token, user: { id: user._id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({ message: "Server error", details: error.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ id: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user._id, username: user.username, email: user.email } });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const token = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    // In a real app, you'd send an email here. For now, we'll just return the token
+    // to simplify testing since we don't have SMTP credentials.
+    res.json({ message: "Reset token generated", resetToken: token });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) return res.status(400).json({ message: "Invalid or expired token" });
+
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const testUser = new User({ username: `test_${Date.now()}`, email: `test_${Date.now()}@test.com`, password: 'password' });
+    await testUser.save();
+    await User.deleteOne({ _id: testUser._id });
+    res.json({ message: "Database write/delete successful" });
+  } catch (error) {
+    console.error("DB Test Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/', (req, res) => {
   res.send('Chat Backend is running...');
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Catch-all for undefined routes
+app.use((req, res) => {
+  console.log(`404 - Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ message: "Route not found" });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+  res.status(500).json({ message: "Something went wrong on the server", error: err.message });
+});
 
 const io = new Server(server, {
   cors: {
@@ -67,7 +209,6 @@ const onlineUsers = new Map(); // userId -> { socketId, username }
 // Middleware: Authenticate Socket Connection
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
-  const { userId, username } = socket.handshake.query;
 
   if (token) {
     try {
@@ -75,17 +216,11 @@ io.use((socket, next) => {
       socket.user = user;
       return next();
     } catch (err) {
-      console.warn("JWT Verification failed, falling back to query params");
+      return next(new Error("Authentication error: Invalid token"));
     }
   }
 
-  // Fallback for development: use query params if no token
-  if (userId && username) {
-    socket.user = { id: userId, username: username };
-    return next();
-  }
-
-  next(new Error("Authentication error"));
+  next(new Error("Authentication error: Token missing"));
 });
 
 io.on('connection', (socket) => {
@@ -115,6 +250,11 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error("Error fetching history:", error);
     }
+  });
+
+  socket.on('leave_room', (roomId) => {
+    socket.leave(roomId);
+    console.log(`User ${user.id} left room ${roomId}`);
   });
 
   // 2. Real-time Messaging

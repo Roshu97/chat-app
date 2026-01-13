@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useChatStore } from './store/useChatStore';
-import { Send, Paperclip } from 'lucide-react';
+import { useAuthStore } from './store/useAuthStore';
+import { Send, Paperclip, LogOut, MessageSquare } from 'lucide-react';
+import AuthPage from './components/AuthPage';
 
 export default function App() {
   const [text, setText] = useState("");
@@ -9,33 +11,20 @@ export default function App() {
   const { 
     messages, sendMessage, connect, 
     onlineUsers, uploadFile, activeRoom, socket,
-    selectedUser, setSelectedUser
+    selectedUser, setSelectedUser, setActiveRoom
   } = useChatStore();
+
+  const { user, token, logout } = useAuthStore();
 
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // 2. Simulate Auth & Connect
+  // 2. Connect when authenticated
   useEffect(() => {
-    // Use a stable ID for the session to avoid duplicates in dev (Strict Mode)
-    const storedId = sessionStorage.getItem("chat_user_id");
-    const storedName = sessionStorage.getItem("chat_user_name");
-    
-    const userId = storedId || "user_" + Math.floor(Math.random() * 1000);
-    const username = storedName || "Developer_" + userId.slice(-3);
-
-    if (!storedId) {
-      sessionStorage.setItem("chat_user_id", userId);
-      sessionStorage.setItem("chat_user_name", username);
+    if (token) {
+      connect(token);
     }
-
-    connect(userId, username);
-
-    return () => {
-      // Optional: disconnect on unmount if you want strictly one connection per component life
-      // disconnect(); 
-    };
-  }, [connect]);
+  }, [token, connect]);
 
   // 3. Auto-scroll to bottom
   useEffect(() => {
@@ -46,6 +35,11 @@ export default function App() {
       });
     }
   }, [messages]);
+
+  // If not logged in, show Auth Page
+  if (!user) {
+    return <AuthPage />;
+  }
 
   // 4. Handle Text Messages
   const handleSend = (e) => {
@@ -66,89 +60,119 @@ export default function App() {
     const file = e.target.files[0];
     if (!file) return;
 
-    const fileUrl = await uploadFile(file);
-    if (fileUrl) {
-      sendMessage({
-        roomId: activeRoom || "general",
-        text: "Sent an image",
-        fileUrl: fileUrl,
-        type: "image",
-        receiverId: selectedUser?.id
-      });
+    try {
+      const fileUrl = await uploadFile(file);
+      if (fileUrl) {
+        sendMessage({
+          roomId: activeRoom || "general",
+          text: "Sent an image",
+          fileUrl: fileUrl,
+          type: "image",
+          receiverId: selectedUser?.id
+        });
+      } else {
+        alert("Upload failed. Please check your Cloudinary configuration.");
+      }
+    } catch (error) {
+      alert("An error occurred during upload.");
+    } finally {
+      e.target.value = ""; // Clear input
     }
   };
 
-  const currentUserId = socket?.io?.opts?.query?.userId;
+  const currentUserId = user.id;
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900">
       {/* Sidebar */}
       <div className="w-64 bg-white border-r flex flex-col hidden md:flex">
         <div className="p-4 border-b">
-          <h1 className="text-xl font-bold text-indigo-600">Chat App</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold text-indigo-600">Chat App</h1>
+            <button onClick={logout} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+              <LogOut size={18} />
+            </button>
+          </div>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-2 h-2 rounded-full ${socket?.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span className="text-xs text-slate-500 font-medium">{socket?.connected ? 'Connected' : 'Disconnected'}</span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Rooms</h2>
-          <div className="space-y-2 mb-8">
-            <button 
-              onClick={() => setSelectedUser(null)}
-              className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
-                !selectedUser ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                !selectedUser ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'
-              }`}>
-                #
-              </div>
-              <span className="text-sm font-semibold">General Chat</span>
-            </button>
-          </div>
 
-          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Online Users ({onlineUsers.length})</h2>
-          <div className="space-y-2">
-            {onlineUsers
-              .filter(user => typeof user === 'object' && user.id !== currentUserId)
-              .map((user) => (
+        <div className="p-4 flex-1 overflow-y-auto">
+          <div className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Channels</h2>
               <button 
-                key={user.id} 
-                onClick={() => setSelectedUser(user)}
-                className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
-                  selectedUser?.id === user.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
-                }`}
+                onClick={() => setActiveRoom('general')}
+                className={`w-full flex items-center gap-2 p-2 rounded-xl text-sm font-semibold transition-colors ${activeRoom === 'general' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
               >
-                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-[10px]">
-                  {user.username?.slice(0, 2).toUpperCase() || "???"}
-                </div>
-                <div className="flex flex-col items-start">
-                  <span className="text-sm font-semibold">{user.username || "Unknown User"}</span>
-                  <span className="text-[10px] text-slate-400 font-medium">Online</span>
-                </div>
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700">#</div>
+                General Chat
               </button>
-            ))}
-            {onlineUsers.length <= 1 && (
-              <p className="text-[10px] text-slate-400 italic px-2">No other users online</p>
-            )}
+            </div>
+
+            <div>
+              <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Direct Messages</h2>
+              <div className="space-y-2">
+                {onlineUsers
+                  .filter(u => typeof u === 'object' && u.id !== currentUserId)
+                  .map((u) => (
+                  <button 
+                    key={u.id} 
+                    onClick={() => setSelectedUser(u, currentUserId)}
+                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
+                      selectedUser?.id === u.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-[10px]">
+                      {u.username?.slice(0, 2).toUpperCase() || "???"}
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold">{u.username || "Unknown User"}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">Online</span>
+                    </div>
+                  </button>
+                ))}
+                {onlineUsers.filter(u => u.id !== currentUserId).length === 0 && (
+                  <p className="text-[10px] text-slate-400 italic px-2">No other users online</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Current User Info */}
+        <div className="p-4 border-t bg-slate-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">
+              {user?.username?.slice(0, 2).toUpperCase() || "ME"}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold truncate max-w-[120px]">{user?.username || "Me"}</span>
+              <span className="text-[10px] text-slate-500">My Account</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-16 bg-white border-b flex items-center px-6 justify-between shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-indigo-600 font-bold text-xl">
-              {selectedUser ? '@' : '#'}
-            </span>
-            <h2 className="font-bold text-slate-800">
-              {selectedUser ? selectedUser.username : (activeRoom === 'general' ? 'General Chat' : activeRoom)}
-            </h2>
+        <header className="h-16 border-b bg-white flex items-center px-6 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700">
+              {selectedUser ? <MessageSquare size={20} /> : <span className="font-bold">#</span>}
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800">
+                {selectedUser ? `Chat with ${selectedUser.username || "User"}` : 'General Chat'}
+              </h3>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {selectedUser ? 'Private Conversation' : 'Open to everyone'}
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Messages List */}
         <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-6">
