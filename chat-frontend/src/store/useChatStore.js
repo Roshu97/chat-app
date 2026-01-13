@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = (import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === 'production' ? window.location.origin : 'http://localhost:3001')).replace(/\/$/, '');
+const SOCKET_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 export const useChatStore = create((set, get) => ({
   // --- STATE ---
