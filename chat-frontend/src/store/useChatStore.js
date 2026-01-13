@@ -10,17 +10,43 @@ export const useChatStore = create((set, get) => ({
   onlineUsers: [],
   typingUsers: {}, // { userId: username }
   activeRoom: 'general',
+  selectedUser: null, // { id, username }
   isConnecting: false,
 
   // --- ACTIONS ---
   
+  setSelectedUser: (user) => {
+    const { socket, activeRoom } = get();
+    if (!user) {
+      if (activeRoom !== 'general') {
+        get().setActiveRoom('general');
+      }
+      set({ selectedUser: null });
+      return;
+    }
+
+    // Get current user ID from socket query (or passed in)
+    const currentUserId = socket?.io.opts.query.userId;
+    if (!currentUserId) return;
+
+    // Generate a unique room ID for the private chat
+    const roomId = [currentUserId, user.id].sort().join('_');
+    const privateRoomId = `private_${roomId}`;
+
+    if (socket) {
+      socket.emit('leave_room', activeRoom);
+      socket.emit('join_room', privateRoomId);
+      set({ activeRoom: privateRoomId, selectedUser: user, messages: [] });
+    }
+  },
+
   // Set Active Room & Handle Transitions
   setActiveRoom: (roomId) => {
     const { socket, activeRoom } = get();
     if (socket) {
       socket.emit('leave_room', activeRoom); 
       socket.emit('join_room', roomId);      
-      set({ activeRoom: roomId, messages: [] }); // Clear UI while history loads
+      set({ activeRoom: roomId, selectedUser: null, messages: [] }); // Clear UI while history loads
     }
   },
 
@@ -54,6 +80,12 @@ export const useChatStore = create((set, get) => ({
         if (isDuplicate) return state;
         return { messages: [...state.messages, newMessage] };
       });
+    });
+
+    newSocket.on('private_message_notification', ({ senderId, senderName, message }) => {
+      // Logic for handling private message when not in the room
+      // For now, we could just console log or add a 'unread' flag to the user in onlineUsers
+      console.log(`New private message from ${senderName}: ${message.text}`);
     });
 
     // Typing Indicators

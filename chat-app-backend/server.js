@@ -93,7 +93,13 @@ io.on('connection', (socket) => {
   console.log(`User Connected: ${user.username} (${user.id})`);
 
   onlineUsers.set(user.id, { socketId: socket.id, username: user.username });
-  io.emit('get_online_users', Array.from(onlineUsers.keys()));
+  io.emit('get_online_users', Array.from(onlineUsers.entries()).map(([id, data]) => ({
+    id,
+    username: data.username
+  })));
+
+  // Each user joins their own personal room for private notifications
+  socket.join(user.id);
 
   // 1. Join a specific Room
   socket.on('join_room', async (roomId) => {
@@ -118,13 +124,26 @@ io.on('connection', (socket) => {
         roomId: data.roomId,
         senderId: user.id,
         senderName: user.username,
+        receiverId: data.receiverId, // For private messages
         text: data.text,
         type: data.type || 'text',
         fileUrl: data.fileUrl
       });
       
       const savedMessage = await newMessage.save();
+      
+      // Emit to the room
       io.to(data.roomId).emit('receive_message', savedMessage);
+
+      // If it's a private message and the receiver isn't in the room, 
+      // we can also emit to their personal room
+      if (data.receiverId && data.roomId !== 'general') {
+        io.to(data.receiverId).emit('private_message_notification', {
+          senderId: user.id,
+          senderName: user.username,
+          message: savedMessage
+        });
+      }
     } catch (error) {
       console.error("Error saving message:", error);
     }
@@ -146,7 +165,10 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`User Disconnected: ${user.username}`);
     onlineUsers.delete(user.id);
-    io.emit('get_online_users', Array.from(onlineUsers.keys()));
+    io.emit('get_online_users', Array.from(onlineUsers.entries()).map(([id, data]) => ({
+      id,
+      username: data.username
+    })));
   });
 });
 

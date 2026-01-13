@@ -8,7 +8,8 @@ export default function App() {
   // 1. Pull everything we need from the store
   const { 
     messages, sendMessage, connect, 
-    onlineUsers, uploadFile, activeRoom, socket
+    onlineUsers, uploadFile, activeRoom, socket,
+    selectedUser, setSelectedUser
   } = useChatStore();
 
   const scrollRef = useRef(null);
@@ -55,6 +56,7 @@ export default function App() {
       roomId: activeRoom || "general",
       text: text,
       type: "text",
+      receiverId: selectedUser?.id
     });
     setText("");
   };
@@ -71,6 +73,7 @@ export default function App() {
         text: "Sent an image",
         fileUrl: fileUrl,
         type: "image",
+        receiverId: selectedUser?.id
       });
     }
   };
@@ -89,16 +92,47 @@ export default function App() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
+          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Rooms</h2>
+          <div className="space-y-2 mb-8">
+            <button 
+              onClick={() => setSelectedUser(null)}
+              className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
+                !selectedUser ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                !selectedUser ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'
+              }`}>
+                #
+              </div>
+              <span className="text-sm font-semibold">General Chat</span>
+            </button>
+          </div>
+
           <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Online Users ({onlineUsers.length})</h2>
           <div className="space-y-2">
-            {onlineUsers.map((user) => (
-              <div key={user} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl cursor-default transition-colors">
+            {onlineUsers
+              .filter(user => typeof user === 'object' && user.id !== currentUserId)
+              .map((user) => (
+              <button 
+                key={user.id} 
+                onClick={() => setSelectedUser(user)}
+                className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
+                  selectedUser?.id === user.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
+                }`}
+              >
                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-[10px]">
-                  {user.slice(-2).toUpperCase()}
+                  {user.username?.slice(0, 2).toUpperCase() || "???"}
                 </div>
-                <span className="text-sm font-semibold text-slate-700">{user}</span>
-              </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-sm font-semibold">{user.username || "Unknown User"}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Online</span>
+                </div>
+              </button>
             ))}
+            {onlineUsers.length <= 1 && (
+              <p className="text-[10px] text-slate-400 italic px-2">No other users online</p>
+            )}
           </div>
         </div>
       </div>
@@ -107,8 +141,12 @@ export default function App() {
         {/* Header */}
         <div className="h-16 bg-white border-b flex items-center px-6 justify-between shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-indigo-600 font-bold text-xl">#</span>
-            <h2 className="font-bold text-slate-800">{activeRoom}</h2>
+            <span className="text-indigo-600 font-bold text-xl">
+              {selectedUser ? '@' : '#'}
+            </span>
+            <h2 className="font-bold text-slate-800">
+              {selectedUser ? selectedUser.username : (activeRoom === 'general' ? 'General Chat' : activeRoom)}
+            </h2>
           </div>
         </div>
 
