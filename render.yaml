@@ -1,11 +1,16 @@
 services:
-  # Backend Web Service
+  # Unified Fullstack Service
   - type: web
-    name: chat-app-backend
+    name: chat-app-fullstack
     env: node
-    rootDir: chat-app-backend
-    buildCommand: npm install
-    startCommand: npm start
+    plan: free
+    rootDir: .
+    buildCommand: |
+      # Build Backend
+      cd chat-app-backend && npm install
+      # Build Frontend
+      cd ../chat-frontend && npm install && npm run build
+    startCommand: cd chat-app-backend && npm start
     envVars:
       - key: NODE_VERSION
         value: 22.16.0
@@ -13,27 +18,7 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: FRONTEND_URL
-        fromService:
-          type: static
-          name: chat-frontend
-          property: host
-
-  # Frontend Static Site
-  - type: static
-    name: chat-frontend
-    rootDir: chat-frontend
-    buildCommand: npm install && npm run build
-    publishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: NODE_VERSION
-        value: 22.16.0
+      - key: NODE_ENV
+        value: production
       - key: VITE_BACKEND_URL
-        fromService:
-          type: web
-          name: chat-app-backend
-          property: host
+        value: https://chat-app-fullstack.onrender.com # Change this to your actual URL

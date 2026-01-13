@@ -14,6 +14,7 @@ const cors = require('cors');
 const allowedOrigins = [
   "https://chat-app-1-44b4.onrender.com",
   "https://chat-app-1-one-flame.vercel.app",
+  "https://chat-app-fullstack.onrender.com",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
@@ -70,6 +71,7 @@ app.use((err, req, res, next) => {
 const User = require('./models/User');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const path = require('path');
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
@@ -168,6 +170,21 @@ app.get('/', (req, res) => {
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// -----------------------------------------------------------------------------
+// SERVE FRONTEND (FOR UNIFIED DEPLOYMENT)
+// -----------------------------------------------------------------------------
+const frontendPath = path.join(__dirname, '../chat-frontend/dist');
+app.use(express.static(frontendPath));
+
+// For any request that doesn't match an API route, serve index.html
+app.get('*', (req, res, next) => {
+  // If it starts with /api, it's a missed API route, so let it go to 404
+  if (req.url.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // Catch-all for undefined routes
 app.use((req, res) => {
