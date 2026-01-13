@@ -7,7 +7,7 @@ export const useChatStore = create((set, get) => ({
   onlineUsers: [],
 
   connect: (token) => {
-    const socket = io('http://localhost:3001', {
+    const socket = io('https://chat-app-cif6.onrender.com', {
       auth: { token }
     });
 
