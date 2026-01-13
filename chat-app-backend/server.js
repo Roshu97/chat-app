@@ -10,11 +10,30 @@ const server = http.createServer(app);
 
 // Use CORS middleware for regular HTTP routes
 const cors = require('cors');
-const frontendUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, "") : "http://localhost:5173";
+const allowedOrigins = [
+  "https://chat-app-cif6.onrender.com/",
+  "https://chat-app-1-44b4.onrender.com/",
+  "http://localhost:5173",
+  "http://localhost:3000"
+];
+
+const frontendUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, "") : null;
+if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
+  allowedOrigins.push(frontendUrl);
+}
 
 app.use(cors({
-  origin: frontendUrl,
-  methods: ["GET", "POST"]
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST"],
+  credentials: true
 }));
 
 app.get('/', (req, res) => {
@@ -25,8 +44,9 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 const io = new Server(server, {
   cors: { 
-    origin: frontendUrl,
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
