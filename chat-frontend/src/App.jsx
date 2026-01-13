@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useChatStore } from './store/useChatStore';
 import { useAuthStore } from './store/useAuthStore';
-import { Send, Paperclip, LogOut, MessageSquare } from 'lucide-react';
+import { Send, Paperclip, LogOut, MessageSquare, Menu, X } from 'lucide-react';
 import AuthPage from './components/AuthPage';
 
 export default function App() {
   const [text, setText] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // 1. Pull everything we need from the store
   const { 
@@ -83,15 +84,35 @@ export default function App() {
   const currentUserId = user.id;
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900">
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden relative">
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r flex flex-col hidden md:flex">
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white border-r flex flex-col transition-transform duration-300 ease-in-out
+        md:relative md:translate-x-0
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-indigo-600">Chat App</h1>
-            <button onClick={logout} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
-              <LogOut size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={logout} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
+                <LogOut size={18} />
+              </button>
+              <button 
+                onClick={() => setIsSidebarOpen(false)} 
+                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 md:hidden"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-2 h-2 rounded-full ${socket?.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -104,7 +125,10 @@ export default function App() {
             <div>
               <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Channels</h2>
               <button 
-                onClick={() => setActiveRoom('general')}
+                onClick={() => {
+                  setActiveRoom('general');
+                  setIsSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-2 p-2 rounded-xl text-sm font-semibold transition-colors ${activeRoom === 'general' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
               >
                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700">#</div>
@@ -120,7 +144,10 @@ export default function App() {
                   .map((u) => (
                   <button 
                     key={u.id} 
-                    onClick={() => setSelectedUser(u, currentUserId)}
+                    onClick={() => {
+                      setSelectedUser(u, currentUserId);
+                      setIsSidebarOpen(false);
+                    }}
                     className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
                       selectedUser?.id === u.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
                     }`}
@@ -158,8 +185,14 @@ export default function App() {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-16 border-b bg-white flex items-center px-6 shrink-0">
+        <header className="h-16 border-b bg-white flex items-center px-4 md:px-6 shrink-0">
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 -ml-2 hover:bg-slate-100 rounded-lg text-slate-500 md:hidden"
+            >
+              <Menu size={24} />
+            </button>
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700">
               {selectedUser ? <MessageSquare size={20} /> : <span className="font-bold">#</span>}
             </div>
