@@ -16,8 +16,24 @@ export default function App() {
 
   // 2. Simulate Auth & Connect
   useEffect(() => {
-    const mockUserId = "user_" + Math.floor(Math.random() * 1000);
-    connect(mockUserId, "Developer_" + mockUserId.slice(-3));
+    // Use a stable ID for the session to avoid duplicates in dev (Strict Mode)
+    const storedId = sessionStorage.getItem("chat_user_id");
+    const storedName = sessionStorage.getItem("chat_user_name");
+    
+    const userId = storedId || "user_" + Math.floor(Math.random() * 1000);
+    const username = storedName || "Developer_" + userId.slice(-3);
+
+    if (!storedId) {
+      sessionStorage.setItem("chat_user_id", userId);
+      sessionStorage.setItem("chat_user_name", username);
+    }
+
+    connect(userId, username);
+
+    return () => {
+      // Optional: disconnect on unmount if you want strictly one connection per component life
+      // disconnect(); 
+    };
   }, [connect]);
 
   // 3. Auto-scroll to bottom
