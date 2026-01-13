@@ -182,7 +182,7 @@ export default function App() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Type your message..."
-                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-slate-800 placeholder:text-slate-400 px-2 font-medium"
+                className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm text-slate-800 placeholder:text-slate-400 px-2 font-medium"
               />
 
               <button 

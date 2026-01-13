@@ -12,6 +12,8 @@ app.get('/', (req, res) => {
   res.send('Chat Backend is running...');
 });
 
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 const io = new Server(server, {
   cors: { 
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
