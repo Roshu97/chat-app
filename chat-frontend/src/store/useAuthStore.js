@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === 'production' ? window.location.origin : 'http://localhost:3001')).replace(/\/$/, '');
 const API_URL = `${BACKEND_URL}/api/auth`;
 
 export const useAuthStore = create((set) => ({
