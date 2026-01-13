@@ -10,17 +10,17 @@ services:
       - key: NODE_VERSION
         value: 22.16.0
       - key: MONGODB_URI
-        sync: false # Set this in the Render dashboard
+        sync: false
       - key: JWT_SECRET
-        generateValue: true # Or set in the dashboard
+        generateValue: true
       - key: FRONTEND_URL
         fromService:
-          type: static_site
+          type: static
           name: chat-frontend
           property: host
 
   # Frontend Static Site
-  - type: static_site
+  - type: static
     name: chat-frontend
     rootDir: chat-frontend
     buildCommand: npm install && npm run build
