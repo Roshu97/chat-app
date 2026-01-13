@@ -8,6 +8,15 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+// Use CORS middleware for regular HTTP routes
+const cors = require('cors');
+const frontendUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, "") : "http://localhost:5173";
+
+app.use(cors({
+  origin: frontendUrl,
+  methods: ["GET", "POST"]
+}));
+
 app.get('/', (req, res) => {
   res.send('Chat Backend is running...');
 });
@@ -16,7 +25,7 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 const io = new Server(server, {
   cors: { 
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: frontendUrl,
     methods: ["GET", "POST"]
   }
 });
