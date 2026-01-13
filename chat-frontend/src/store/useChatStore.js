@@ -26,38 +26,44 @@ export const useChatStore = create((set, get) => ({
 
   // Main Connection Logic
   connect: (userId, username) => {
-    if (get().socket?.connected) return;
+    const { socket, isConnecting } = get();
+    if (socket?.connected || isConnecting) return;
 
     set({ isConnecting: true });
     
-    const socket = io(SOCKET_URL, {
+    const newSocket = io(SOCKET_URL, {
       query: { userId, username },
     });
 
-    socket.on('connect', () => {
-      set({ socket, isConnecting: false });
+    newSocket.on('connect', () => {
+      set({ socket: newSocket, isConnecting: false });
       console.log('Connected to WebSocket');
       // Join default room on connection
-      socket.emit('join_room', get().activeRoom);
+      newSocket.emit('join_room', get().activeRoom);
     });
 
     // Listeners
-    socket.on('get_online_users', (users) => set({ onlineUsers: users }));
+    newSocket.on('get_online_users', (users) => set({ onlineUsers: users }));
     
-    socket.on('load_history', (history) => set({ messages: history }));
+    newSocket.on('load_history', (history) => set({ messages: history }));
 
-    socket.on('receive_message', (newMessage) => {
-      set((state) => ({ messages: [...state.messages, newMessage] }));
+    newSocket.on('receive_message', (newMessage) => {
+      // Prevent duplicate messages if multiple sockets somehow exist
+      set((state) => {
+        const isDuplicate = state.messages.some(m => m._id === newMessage._id);
+        if (isDuplicate) return state;
+        return { messages: [...state.messages, newMessage] };
+      });
     });
 
     // Typing Indicators
-    socket.on('user_typing', ({ userId, username }) => {
+    newSocket.on('user_typing', ({ userId, username }) => {
       set((state) => ({
         typingUsers: { ...state.typingUsers, [userId]: username }
       }));
     });
 
-    socket.on('user_stopped_typing', (userId) => {
+    newSocket.on('user_stopped_typing', (userId) => {
       set((state) => {
         const newTyping = { ...state.typingUsers };
         delete newTyping[userId];
@@ -65,9 +71,12 @@ export const useChatStore = create((set, get) => ({
       });
     });
 
-    socket.on('disconnect', () => set({ socket: null }));
+    newSocket.on('disconnect', () => {
+      console.log('Disconnected from WebSocket');
+      set({ socket: null, isConnecting: false });
+    });
 
-    set({ socket });
+    set({ socket: newSocket });
   },
 
   sendMessage: (messageData) => {
